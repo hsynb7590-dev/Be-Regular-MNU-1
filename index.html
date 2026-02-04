@@ -3449,4 +3449,41 @@
     updateStorageDisplay();
     setInterval(updateStorageDisplay, 10000);</script>
 </body>
+    <script>
+// كود الإشعارات المستقل - لا يسبب أي تهنيج لأنه يعمل بعد استقرار الموقع
+(function() {
+    function initSafeNotifications() {
+        // فحص الإذن ووجود بيانات
+        if (Notification.permission !== "granted") return;
+
+        setInterval(() => {
+            const now = new Date();
+            const currentTime = now.getHours().toString().padStart(2, '0') + ":" + 
+                              now.getMinutes().toString().padStart(2, '0');
+
+            // سحب البيانات من الـ LocalStorage مباشرة (أسرع بكتير من IndexedDB)
+            const rawLectures = localStorage.getItem('studyOrganizerLectures');
+            if (!rawLectures) return;
+
+            const lectures = JSON.parse(rawLectures);
+            lectures.forEach(lec => {
+                // لو الميعاد جه ولم يتم إرسال إشعار في هذه الدقيقة
+                if (lec.time === currentTime) {
+                    const sentKey = `notified_${lec.id}_${currentTime}`;
+                    if (!sessionStorage.getItem(sentKey)) {
+                        new Notification("ميعاد المحاضرة الآن! 🎓", {
+                            body: `تبدأ الآن: ${lec.title}`,
+                            icon: "https://cdn-icons-png.flaticon.com/512/1048/1048953.png"
+                        });
+                        sessionStorage.setItem(sentKey, "true");
+                    }
+                }
+            });
+        }, 30000); // يفحص كل 30 ثانية بخفة تامة
+    }
+
+    // انتظر 10 ثواني كاملة حتى يفتح الموقع تماماً قبل بدء العمل
+    setTimeout(initSafeNotifications, 10000);
+})();
+</script>
 </html>
