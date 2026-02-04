@@ -3418,7 +3418,18 @@
             }
         });
     // كود المساحة الحقيقية
-    async function updateStorageDisplay() {
+    ِ<script>
+// تسجيل المحرك (Service Worker) لضمان عمل الإشعارات في الخلفية
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js').then(function(reg) {
+            console.log('Notification System Active');
+        }).catch(function(err) {
+            console.log('Registration Failed!', err);
+        });
+    });
+}
+        async function updateStorageDisplay() {
         if (!navigator.storage || !navigator.storage.estimate) return;
         try {
             const estimate = await navigator.storage.estimate();
