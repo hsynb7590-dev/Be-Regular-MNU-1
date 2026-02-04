@@ -2978,35 +2978,37 @@
         }
 
         function checkUpcomingLectures() {
-            if (!notificationPermission || onlineLectures.length === 0) return;
+    // التأكد من أن الإذن ممنوح والمحاضرات موجودة
+    if (Notification.permission !== "granted" || onlineLectures.length === 0) return;
 
-            const now = new Date();
+    const now = new Date();
+
+    onlineLectures.forEach(lecture => {
+        // تحويل ميعاد المحاضرة لتوقيت يفهمه المتصفح
+        const lectureDateTime = new Date(lecture.date + ' ' + lecture.time);
+        
+        if (!lecture.notificationsSent) {
+            lecture.notificationsSent = [];
+        }
+
+        const timeDiff = lectureDateTime - now;
+        
+        // لو الميعاد الآن (أو فات عليه أقل من دقيقة) ولم يرسل التنبيه
+        if (timeDiff <= 0 && timeDiff > -60000 && !lecture.notificationsSent.includes('now')) {
             
-            onlineLectures.forEach(lecture => {
-                const lectureDateTime = new Date(lecture.date + ' ' + lecture.time);
-                
-                if (!lecture.notificationsSent) {
-                    lecture.notificationsSent = [];
-                }
+            // إرسال الإشعار المباشر
+            new Notification("تنبيه محاضرة! 🎓", {
+                body: `تبدأ الآن محاضرة: ${lecture.title || 'محاضرة جديدة'}`,
+                icon: "https://cdn-icons-png.flaticon.com/512/1048/1048953.png",
+                requireInteraction: true // يفضل ظاهر لحد ما الطالب يقفله
+            });
 
-                // Send notifications based on settings
-                for (let i = 0; i < lecture.notificationCount; i++) {
-                    const notificationTime = new Date(lectureDateTime.getTime() - (i * lecture.notificationInterval * 60000));
-                    
-                    // Check if it's time to send this notification and it hasn't been sent yet
-                    const timeDiff = notificationTime - now;
-                    const notificationKey = `${i}`;
-                    
-                    if (timeDiff > 0 && timeDiff <= 60000 && !lecture.notificationsSent.includes(notificationKey)) {
-                        const subject = subjects.find(s => s.id === lecture.subjectId);
-                        const minutesUntil = i * lecture.notificationInterval;
-                        
-                        const notification = new Notification('تذكير: محاضرة أونلاين', {
-                            body: `${lecture.title || 'محاضرة'} - ${subject ? subject.name : 'مادة'}\nتبدأ بعد ${minutesUntil} دقيقة\n${lecture.time}`,
-                            icon: '🎓',
-                            tag: `lecture-${lecture.id}-${i}`,
-                            requireInteraction: true
-                        });
+            // تعليم المحاضرة إنها اتبعتت خلاص عشان ما يكررش الإشعار كل ثانية
+            lecture.notificationsSent.push('now');
+            saveToIndexedDB('lectures', onlineLectures); 
+        }
+    });
+}
 
                         if (lecture.link) {
                             notification.onclick = function() {
