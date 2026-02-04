@@ -2978,34 +2978,25 @@
         }
 
         function checkUpcomingLectures() {
-    // التأكد من أن الإذن ممنوح والمحاضرات موجودة
-    if (Notification.permission !== "granted" || onlineLectures.length === 0) return;
+    // فحص سريع: لو مفيش إذن أو مفيش محاضرات، اخرج فوراً عشان ما تستهلكش طاقة
+    if (Notification.permission !== "granted" || !onlineLectures || onlineLectures.length === 0) return;
 
-    const now = new Date();
+    const now = new Date().getTime(); // استخدام التوقيت بالملي ثانية أخف بكتير
 
     onlineLectures.forEach(lecture => {
-        // تحويل ميعاد المحاضرة لتوقيت يفهمه المتصفح
-        const lectureDateTime = new Date(lecture.date + ' ' + lecture.time);
+        const lectureTime = new Date(lecture.date + ' ' + lecture.time).getTime();
         
-        if (!lecture.notificationsSent) {
-            lecture.notificationsSent = [];
-        }
-
-        const timeDiff = lectureDateTime - now;
-        
-        // لو الميعاد الآن (أو فات عليه أقل من دقيقة) ولم يرسل التنبيه
-        if (timeDiff <= 0 && timeDiff > -60000 && !lecture.notificationsSent.includes('now')) {
+        // لو ميعاد المحاضرة جه (في نطاق دقيقة واحدة)
+        if (now >= lectureTime && now < (lectureTime + 60000)) {
             
-            // إرسال الإشعار المباشر
-            new Notification("تنبيه محاضرة! 🎓", {
-                body: `تبدأ الآن محاضرة: ${lecture.title || 'محاضرة جديدة'}`,
-                icon: "https://cdn-icons-png.flaticon.com/512/1048/1048953.png",
-                requireInteraction: true // يفضل ظاهر لحد ما الطالب يقفله
-            });
-
-            // تعليم المحاضرة إنها اتبعتت خلاص عشان ما يكررش الإشعار كل ثانية
-            lecture.notificationsSent.push('now');
-            saveToIndexedDB('lectures', onlineLectures); 
+            // التأكد إننا مابعثناش الإشعار ده قبل كدة (بدون استخدام IndexedDB جوه اللوب)
+            if (!lecture.hasNotified) {
+                new Notification("تنبيه محاضرة! 🎓", {
+                    body: `تبدأ الآن: ${lecture.title || 'محاضرة جديدة'}`,
+                    icon: "https://cdn-icons-png.flaticon.com/512/1048/1048953.png"
+                });
+                lecture.hasNotified = true; // علامة في الذاكرة المؤقتة فقط لمنع التهنيج
+            }
         }
     });
 }
