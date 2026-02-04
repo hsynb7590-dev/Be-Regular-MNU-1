@@ -925,7 +925,8 @@
             }
 
             // Check for upcoming lectures and send notifications
-            
+            checkUpcomingLectures();
+            setInterval(checkUpcomingLectures, 60000); // Check every minute
         });
 
         function setupEventListeners() {
@@ -2976,7 +2977,36 @@
             }
         }
 
-       
+        function checkUpcomingLectures() {
+            if (!notificationPermission || onlineLectures.length === 0) return;
+
+            const now = new Date();
+            
+            onlineLectures.forEach(lecture => {
+                const lectureDateTime = new Date(lecture.date + ' ' + lecture.time);
+                
+                if (!lecture.notificationsSent) {
+                    lecture.notificationsSent = [];
+                }
+
+                // Send notifications based on settings
+                for (let i = 0; i < lecture.notificationCount; i++) {
+                    const notificationTime = new Date(lectureDateTime.getTime() - (i * lecture.notificationInterval * 60000));
+                    
+                    // Check if it's time to send this notification and it hasn't been sent yet
+                    const timeDiff = notificationTime - now;
+                    const notificationKey = `${i}`;
+                    
+                    if (timeDiff > 0 && timeDiff <= 60000 && !lecture.notificationsSent.includes(notificationKey)) {
+                        const subject = subjects.find(s => s.id === lecture.subjectId);
+                        const minutesUntil = i * lecture.notificationInterval;
+                        
+                        const notification = new Notification('تذكير: محاضرة أونلاين', {
+                            body: `${lecture.title || 'محاضرة'} - ${subject ? subject.name : 'مادة'}\nتبدأ بعد ${minutesUntil} دقيقة\n${lecture.time}`,
+                            icon: '🎓',
+                            tag: `lecture-${lecture.id}-${i}`,
+                            requireInteraction: true
+                        });
 
                         if (lecture.link) {
                             notification.onclick = function() {
@@ -3418,37 +3448,5 @@
     }
     updateStorageDisplay();
     setInterval(updateStorageDisplay, 10000);</script>
-    <script>
-// كود الإشعارات الذكي: يعمل في صمت تام ولا يسبب ثقل
-(function() {
-    function startChecking() {
-        // التأكد من وجود إذن ومحاضرات قبل البدء
-        if (Notification.permission !== "granted" || !window.onlineLectures) return;
-
-        setInterval(() => {
-            const now = new Date();
-            const timeStr = now.getHours().toString().padStart(2, '0') + ":" + 
-                          now.getMinutes().toString().padStart(2, '0');
-
-            window.onlineLectures.forEach(lecture => {
-                // مقارنة الوقت + التأكد إنه متبعثش في الـ 30 دقيقة الأخيرة
-                if (lecture.time === timeStr) {
-                    const lastNotified = sessionStorage.getItem(`sent_${lecture.id}`);
-                    if (lastNotified !== timeStr) {
-                        new Notification("تنبيه محاضرة! 🎓", {
-                            body: `بدأت الآن: ${lecture.title}`,
-                            icon: "https://cdn-icons-png.flaticon.com/512/1048/1048953.png"
-                        });
-                        sessionStorage.setItem(`sent_${lecture.id}`, timeStr);
-                    }
-                }
-            });
-        }, 40000); // فحص هادئ كل 40 ثانية
-    }
-
-    // انتظر 5 ثواني بعد فتح الموقع قبل تفعيل التنبيهات لضمان سلاسة التحميل
-    setTimeout(startChecking, 5000);
-})();
-</script>
 </body>
 </html>
