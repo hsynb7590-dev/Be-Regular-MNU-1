@@ -2975,22 +2975,7 @@
             }
         }
 
-       function checkUpcomingLectures() {
-    const onlineLectures = JSON.parse(localStorage.getItem('onlineLectures') || '[]');
-    if (onlineLectures.length === 0) return;
-
-    const now = new Date();
-    const notifiedLectures = JSON.parse(localStorage.getItem('notifiedLectures') || '[]');
-
-    onlineLectures.forEach(lecture => {
-        let timeParts = lecture.time.split(':');
-        let hours = parseInt(timeParts[0]);
-        let minutes = parseInt(timeParts[1]);
-
-        // ده التعديل اللي هيخلي الـ 7 تبقى 19 والـ 8 تبقى 20 تلقائياً
-        if (hours >= 1 && hours <= 11) {
-            hours += 12;
-        }
+       
 
         const lectureDateTime = new Date(lecture.date + ' ' + hours + ':' + minutes);
         const timeDiff = lectureDateTime - now;
@@ -3407,54 +3392,56 @@
             `;
         }
 
-       // 1. إعادة ربط الأزرار بعد البحث
-        document.addEventListener('click', function(e) {
-            if (e.target && e.target.id === 'openTextConverterBtn2') { e.preventDefault(); openTextConverter(); }
-            if (e.target && e.target.id === 'openOnlineLecturesBtn2') { e.preventDefault(); openOnlineLectures(); }
+       // 1. تشغيل أزرار المحول والمحاضرات
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'openTextConverterBtn2') { e.preventDefault(); openTextConverter(); }
+            if (e.target.id === 'openOnlineLecturesBtn2') { e.preventDefault(); openOnlineLectures(); }
         });
 
-        // 2. تحديث المساحة والإشعارات في محرك واحد (خفيف جداً)
-        async function runBackgroundTasks() {
-            // فحص مساحة التخزين
-            if (navigator.storage && navigator.storage.estimate) {
-                try {
-                    const est = await navigator.storage.estimate();
-                    const usage = (est.usage / (1024 * 1024)).toFixed(1);
-                    const total = (est.quota / (1024 * 1024 * 1024)).toFixed(1);
-                    const percent = ((est.usage / est.quota) * 100).toFixed(1);
-                    
-                    const el = document.getElementById('storage-detail-text');
-                    if (el) el.innerHTML = `المستخدم: ${usage}MB من ${total}GB`;
-                    const bar = document.getElementById('storage-bar-inner');
-                    if (bar) bar.style.width = percent + "%";
-                } catch (e) {}
-            }
-
-            // فحص الإشعارات
-            const now = new Date();
-            const time = now.getHours().toString().padStart(2,'0') + ":" + now.getMinutes().toString().padStart(2,'0');
-            const raw = localStorage.getItem('studyOrganizerLectures');
-            if (raw) {
-                try {
-                    JSON.parse(raw).forEach(lec => {
-                        if (lec.time === time) {
-                            const key = `notified_${lec.id || 'lec'}_${time}`;
-                            if (!sessionStorage.getItem(key) && Notification.permission === "granted") {
-                                new Notification("ميعاد المحاضرة: " + (lec.name || "تنبيه"));
-                                sessionStorage.setItem(key, "true");
+        // 2. محرك المهام الموحد (إشعارات + مساحة تخزين)
+        (function() {
+            async function doAllTasks() {
+                const now = new Date();
+                const currentTime = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+                
+                // أولاً: فحص المواعيد لإرسال إشعار
+                const data = localStorage.getItem('studyOrganizerLectures');
+                if (data) {
+                    try {
+                        const lectures = JSON.parse(data);
+                        lectures.forEach(lec => {
+                            if (lec.time === currentTime) {
+                                const key = `notif_${lec.id || 'lec'}_${currentTime}`;
+                                if (!sessionStorage.getItem(key) && Notification.permission === "granted") {
+                                    new Notification("تنبيه المحاضرة 🎓", {
+                                        body: `بدأت الآن: ${lec.name || 'محاضرة جديدة'}`,
+                                        icon: "https://cdn-icons-png.flaticon.com/512/1048/1048953.png"
+                                    });
+                                    sessionStorage.setItem(key, "true");
+                                }
                             }
-                        }
-                    });
-                } catch (e) {}
-            }
-        }
+                        });
+                    } catch(e) { console.log("Data Error"); }
+                }
 
-        // تشغيل المهمة مرة كل دقيقة واحدة (أفضل أداء لمنع التهنيج)
-        setTimeout(() => {
-            if (Notification.permission === "default") Notification.requestPermission();
-            runBackgroundTasks();
-            setInterval(runBackgroundTasks, 60000); 
-        }, 5000);
+                // ثانياً: تحديث شكل مساحة التخزين
+                if (navigator.storage && navigator.storage.estimate) {
+                    try {
+                        const est = await navigator.storage.estimate();
+                        const usage = (est.usage / (1024 * 1024)).toFixed(1);
+                        const el = document.getElementById('storage-detail-text');
+                        if (el) el.innerHTML = `المساحة المستخدمة: <b>${usage} ميجا</b>`;
+                    } catch(e) {}
+                }
+            }
+
+            // الانتظار 5 ثوانٍ بعد فتح الموقع ليبدأ العمل بهدوء
+            setTimeout(() => {
+                if (Notification.permission === "default") Notification.requestPermission();
+                doAllTasks(); // تشغيل فوري
+                setInterval(doAllTasks, 60000); // تكرار كل دقيقة كاملة
+            }, 5000);
+        })();
     </script>
 </body>
 </html>
