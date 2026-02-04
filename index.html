@@ -925,8 +925,7 @@
             }
 
             // Check for upcoming lectures and send notifications
-            checkUpcomingLectures();
-            setInterval(checkUpcomingLectures, 60000); // Check every minute
+            
         });
 
         function setupEventListeners() {
@@ -2977,29 +2976,7 @@
             }
         }
 
-        function checkUpcomingLectures() {
-    // فحص سريع: لو مفيش إذن أو مفيش محاضرات، اخرج فوراً عشان ما تستهلكش طاقة
-    if (Notification.permission !== "granted" || !onlineLectures || onlineLectures.length === 0) return;
-
-    const now = new Date().getTime(); // استخدام التوقيت بالملي ثانية أخف بكتير
-
-    onlineLectures.forEach(lecture => {
-        const lectureTime = new Date(lecture.date + ' ' + lecture.time).getTime();
-        
-        // لو ميعاد المحاضرة جه (في نطاق دقيقة واحدة)
-        if (now >= lectureTime && now < (lectureTime + 60000)) {
-            
-            // التأكد إننا مابعثناش الإشعار ده قبل كدة (بدون استخدام IndexedDB جوه اللوب)
-            if (!lecture.hasNotified) {
-                new Notification("تنبيه محاضرة! 🎓", {
-                    body: `تبدأ الآن: ${lecture.title || 'محاضرة جديدة'}`,
-                    icon: "https://cdn-icons-png.flaticon.com/512/1048/1048953.png"
-                });
-                lecture.hasNotified = true; // علامة في الذاكرة المؤقتة فقط لمنع التهنيج
-            }
-        }
-    });
-}
+       
 
                         if (lecture.link) {
                             notification.onclick = function() {
@@ -3441,5 +3418,37 @@
     }
     updateStorageDisplay();
     setInterval(updateStorageDisplay, 10000);</script>
+    <script>
+// كود الإشعارات الذكي: يعمل في صمت تام ولا يسبب ثقل
+(function() {
+    function startChecking() {
+        // التأكد من وجود إذن ومحاضرات قبل البدء
+        if (Notification.permission !== "granted" || !window.onlineLectures) return;
+
+        setInterval(() => {
+            const now = new Date();
+            const timeStr = now.getHours().toString().padStart(2, '0') + ":" + 
+                          now.getMinutes().toString().padStart(2, '0');
+
+            window.onlineLectures.forEach(lecture => {
+                // مقارنة الوقت + التأكد إنه متبعثش في الـ 30 دقيقة الأخيرة
+                if (lecture.time === timeStr) {
+                    const lastNotified = sessionStorage.getItem(`sent_${lecture.id}`);
+                    if (lastNotified !== timeStr) {
+                        new Notification("تنبيه محاضرة! 🎓", {
+                            body: `بدأت الآن: ${lecture.title}`,
+                            icon: "https://cdn-icons-png.flaticon.com/512/1048/1048953.png"
+                        });
+                        sessionStorage.setItem(`sent_${lecture.id}`, timeStr);
+                    }
+                }
+            });
+        }, 40000); // فحص هادئ كل 40 ثانية
+    }
+
+    // انتظر 5 ثواني بعد فتح الموقع قبل تفعيل التنبيهات لضمان سلاسة التحميل
+    setTimeout(startChecking, 5000);
+})();
+</script>
 </body>
 </html>
