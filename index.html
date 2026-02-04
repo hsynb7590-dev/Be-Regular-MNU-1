@@ -924,7 +924,9 @@
                 searchInput.addEventListener('input', handleSearch);
             }
 
-           
+            // Check for upcoming lectures and send notifications
+            checkUpcomingLectures();
+            setInterval(checkUpcomingLectures, 60000); // Check every minute
         });
 
         function setupEventListeners() {
@@ -2975,25 +2977,37 @@
             }
         }
 
-       
+        function checkUpcomingLectures() {
+            if (!notificationPermission || onlineLectures.length === 0) return;
 
-        const lectureDateTime = new Date(lecture.date + ' ' + hours + ':' + minutes);
-        const timeDiff = lectureDateTime - now;
-
-        // لو الفرق بين دلوقتي وميعاد المحاضرة أقل من دقيقة
-        if (timeDiff > -60000 && timeDiff <= 0 && !notifiedLectures.includes(lecture.id)) {
-            if (Notification.permission === "granted") {
-                new Notification("تذكير بمحاضرة أونلاين", {
-                    body: `تبدأ الآن محاضرة: ${lecture.subject}`,
-                    icon: "https://cdn-icons-png.flaticon.com/512/2997/2997495.png" 
-                });
+            const now = new Date();
+            
+            onlineLectures.forEach(lecture => {
+                const lectureDateTime = new Date(lecture.date + ' ' + lecture.time);
                 
-                notifiedLectures.push(lecture.id);
-                localStorage.setItem('notifiedLectures', JSON.stringify(notifiedLectures));
-            }
-        }
-    });
-}
+                if (!lecture.notificationsSent) {
+                    lecture.notificationsSent = [];
+                }
+
+                // Send notifications based on settings
+                for (let i = 0; i < lecture.notificationCount; i++) {
+                    const notificationTime = new Date(lectureDateTime.getTime() - (i * lecture.notificationInterval * 60000));
+                    
+                    // Check if it's time to send this notification and it hasn't been sent yet
+                    const timeDiff = notificationTime - now;
+                    const notificationKey = `${i}`;
+                    
+                    if (timeDiff > 0 && timeDiff <= 60000 && !lecture.notificationsSent.includes(notificationKey)) {
+                        const subject = subjects.find(s => s.id === lecture.subjectId);
+                        const minutesUntil = i * lecture.notificationInterval;
+                        
+                        const notification = new Notification('تذكير: محاضرة أونلاين', {
+                            body: `${lecture.title || 'محاضرة'} - ${subject ? subject.name : 'مادة'}\nتبدأ بعد ${minutesUntil} دقيقة\n${lecture.time}`,
+                            icon: '🎓',
+                            tag: `lecture-${lecture.id}-${i}`,
+                            requireInteraction: true
+                        });
+
                         if (lecture.link) {
                             notification.onclick = function() {
                                 window.open(lecture.link, '_blank');
@@ -3392,56 +3406,47 @@
             `;
         }
 
-       // 1. تشغيل أزرار المحول والمحاضرات
-        document.addEventListener('click', (e) => {
-            if (e.target.id === 'openTextConverterBtn2') { e.preventDefault(); openTextConverter(); }
-            if (e.target.id === 'openOnlineLecturesBtn2') { e.preventDefault(); openOnlineLectures(); }
+        // Re-attach event listeners after search results render
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'openTextConverterBtn2') {
+                e.preventDefault();
+                openTextConverter();
+            }
+            if (e.target && e.target.id === 'openOnlineLecturesBtn2') {
+                e.preventDefault();
+                openOnlineLectures();
+            }
         });
+    // كود المساحة الحقيقية
+    async function updateStorageDisplay() {
+        if (!navigator.storage || !navigator.storage.estimate) return;
+        try {
+            const estimate = await navigator.storage.estimate();
+            const quotaGB = (estimate.quota / (1024 * 1024 * 1024)).toFixed(1);
+            const usageMB = (estimate.usage / (1024 * 1024)).toFixed(1);
+            const percent = ((estimate.usage / estimate.quota) * 100);
 
-        // 2. محرك المهام الموحد (إشعارات + مساحة تخزين)
-        (function() {
-            async function doAllTasks() {
-                const now = new Date();
-                const currentTime = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-                
-                // أولاً: فحص المواعيد لإرسال إشعار
-                const data = localStorage.getItem('studyOrganizerLectures');
-                if (data) {
-                    try {
-                        const lectures = JSON.parse(data);
-                        lectures.forEach(lec => {
-                            if (lec.time === currentTime) {
-                                const key = `notif_${lec.id || 'lec'}_${currentTime}`;
-                                if (!sessionStorage.getItem(key) && Notification.permission === "granted") {
-                                    new Notification("تنبيه المحاضرة 🎓", {
-                                        body: `بدأت الآن: ${lec.name || 'محاضرة جديدة'}`,
-                                        icon: "https://cdn-icons-png.flaticon.com/512/1048/1048953.png"
-                                    });
-                                    sessionStorage.setItem(key, "true");
-                                }
-                            }
-                        });
-                    } catch(e) { console.log("Data Error"); }
-                }
+            const detailText = document.getElementById('storage-detail-text');
+            const percentText = document.getElementById('storage-percentage');
+            const barInner = document.getElementById('storage-bar-inner');
+            const warningBox = document.getElementById('storage-warning');
 
-                // ثانياً: تحديث شكل مساحة التخزين
-                if (navigator.storage && navigator.storage.estimate) {
-                    try {
-                        const est = await navigator.storage.estimate();
-                        const usage = (est.usage / (1024 * 1024)).toFixed(1);
-                        const el = document.getElementById('storage-detail-text');
-                        if (el) el.innerHTML = `المساحة المستخدمة: <b>${usage} ميجا</b>`;
-                    } catch(e) {}
+            if (detailText) detailText.innerHTML = `المستخدم: <b>${usageMB} ميجا</b> من أصل <b>${quotaGB} جيجا</b> متاحين لجهازك.`;
+            if (percentText) percentText.innerText = percent.toFixed(1) + "%";
+            
+            if (barInner) {
+                barInner.style.width = Math.max(percent, 0.5) + "%";
+                if (percent > 90) {
+                    barInner.style.background = "#ef4444";
+                    if (warningBox) warningBox.style.display = "block";
+                } else {
+                    barInner.style.background = "#10b981";
+                    if (warningBox) warningBox.style.display = "none";
                 }
             }
-
-            // الانتظار 5 ثوانٍ بعد فتح الموقع ليبدأ العمل بهدوء
-            setTimeout(() => {
-                if (Notification.permission === "default") Notification.requestPermission();
-                doAllTasks(); // تشغيل فوري
-                setInterval(doAllTasks, 60000); // تكرار كل دقيقة كاملة
-            }, 5000);
-        })();
-    </script>
+        } catch (err) { console.log("Storage Sync Error"); }
+    }
+    updateStorageDisplay();
+    setInterval(updateStorageDisplay, 10000);</script>
 </body>
 </html>
